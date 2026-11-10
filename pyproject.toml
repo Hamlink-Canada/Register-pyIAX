@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=84,<85"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpt-iax-register"
+version = "0.2.0"
+description = "IAX repeater registration"
+requires-python = ">=3.13"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+dependencies = ["rpt-protobuf[grpc] @ git+https://github.com/Hamlink-Canada/rpt_protobuf.git@aefcc36ebb149c175429ddea86c482cf37f5ebd4", "dynaconf>=3.3.5,<4", "confluent-kafka>=2.16,<3", "cachetools>=8,<9"]
+
+[project.scripts]
+rpt-iax = "rpt_iax.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=9.2,<10", "ruff>=0.17.4,<0.18", "build>=1.6,<2"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+exclude = ["*_pb2.py", "*_pb2_grpc.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.uv.sources]
+rpt-protobuf = { path = "../rpt_protobuf", editable = true }

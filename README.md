@@ -1,99 +1,164 @@
-# pyIAX-Register
+# IAX repeater registration
 
-IAX2 Registration Server (Python)
+This service accepts IAX2 registrations from repeater nodes. It verifies their MD5
+challenge responses and publishes accepted registrations to Kafka for the DNS
+directory. It listens on UDP port 4569 and supports IPv4 nodes. RSA authentication
+is not supported.
 
-Overview
-- Listens for IAX2 registration packets and authenticates/registers
-	nodes using pluggable backends. Successful registrations are optionally
-	published as protobuf `update` messages to Kafka for consumption by
-	other services (for example a DNS service).
+You need Docker, a reachable Kafka broker, and credentials for the nodes allowed
+to register. The address and UDP port observed by the service are published as the
+node's endpoint, so the deployment must preserve the client's source address.
 
-Project layout
-- `threaded_server.py` — UDP server entrypoint handling IAX2 packets.
-- `iax2/` — IAX2 packet parsing and helpers.
-- `register/` — registration backends (aslold, flatfile, dummy).
-- `notify/` — notification backends (kafka, dummy).
-- `dns_pb2.py` — generated protobuf bindings (included in-tree).
-- `pyiax-reg.conf` — example configuration file.
-- `useraccess.csv` — sample flatfile user database used by `flatfile` backend.
+## Prepare node credentials
 
-Prerequisites
-- Python 3.8+
-- A running Kafka cluster if you plan to use the `kafka` notify backend
-- (optional) A MySQL-compatible database containing an ASL-style
-	`user_Nodes` table if you use the `aslold` registration backend
+Create a CSV file containing a generated password for each node:
 
-Install
-
-1. Create and activate a virtualenv and install requirements:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+```csv
+node_id,password
+1234,YOUR_GENERATED_PASSWORD
 ```
 
-2. The repository already includes `dns_pb2.py`. If you need to
-	 regenerate it, obtain `dns.proto` from the DNS server project
-	 (GitHub: https://github.com/Apprpt-Central/dnsserver) and run `protoc`.
+The file requires the `node_id,password` header. IDs must be numeric and unique;
+passwords must be 1–79 printable ASCII characters without whitespace. Generated
+32-character base64url passwords are suitable for client configuration. The service
+loads and validates the file at startup, so restart it after making changes.
+Never commit a real credential file.
 
-Configuration
+The container runs as UID/GID 10001. Set the host file's ownership and permissions
+so that this user can read it while access by other users is restricted.
 
-- `pyiax-reg.conf` contains defaults for command line options. You can
-	either edit this file or pass options to `threaded_server.py`.
-- Important options include:
-	- `--register` — choose a registration backend (choices are the
-		names in the `register/` package, e.g. `flatfile`, `aslold`, `dummy`).
-	- `--notify` — choose a notification backend (e.g. `kafka`, `dummy`).
-	- Backend-specific options are documented in each module's `help()`.
+## Run the service
 
-Running locally
+Choose a versioned image from `ghcr.io/hamlink-canada/rpt-iax-register` when a release
+is available. Before an image is published, [build this checkout](#build-an-image)
+and use `rpt-iax-register:local`.
 
-Start the UDP server with a chosen register & notify backend. Examples:
+This Linux example uses host networking to preserve the client's source address.
+With `credentials.csv` in the current directory, replace the broker address below:
 
-Flatfile register (uses `useraccess.csv`):
+```sh
+IMAGE=rpt-iax-register:local
 
-```bash
-python3 threaded_server.py --register flatfile --notify dummy
+docker run -d --name rpt-iax --restart unless-stopped \
+  --network host \
+  --mount "type=bind,src=$(pwd)/credentials.csv,dst=/run/secrets/credentials.csv,readonly" \
+  --env RPT_AUTH__BACKEND=file \
+  --env RPT_AUTH__FILE=/run/secrets/credentials.csv \
+  --env RPT_KAFKA__BOOTSTRAP=kafka.example.org:9092 \
+  --env RPT_KAFKA__TOPIC=rpt.registrations \
+  --env RPT_SERVER_ID=iax-1 \
+  "$IMAGE"
 ```
 
-ASL DB register (MySQL):
+Allow incoming UDP 4569 through the host firewall. Host networking uses the host's
+port directly, so another IAX service cannot occupy the same address and port.
+Kafka's advertised broker addresses must also be reachable from the container.
 
-```bash
-python3 threaded_server.py --register aslold --notify kafka --db mysql+pymysql://user:pass@host/dbname
+You can use another networking arrangement if it preserves the original source
+address and UDP port. Verify those values in the resulting registration before
+using it for a public endpoint. See [IAX behavior](docs/iax.md) for protocol and
+networking details.
+
+## Configuration
+
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| `RPT_HOST` | `0.0.0.0` | Local address to bind. |
+| `RPT_PORT` | `4569` | UDP listening port. |
+| `RPT_KAFKA__BOOTSTRAP` | `localhost:9092` | Kafka bootstrap address. |
+| `RPT_KAFKA__TOPIC` | `rpt.registrations` | Topic shared with the DNS directory. |
+| `RPT_SERVER_ID` | `registrar-1` in the image settings | Identifier included in registrations. |
+| `RPT_REFRESH` | `60` | Refresh value sent in REGACK, in seconds. |
+| `RPT_LIFETIME` | `180` | Registration validity in the DNS directory, in seconds. |
+| `RPT_AUTH__BACKEND` | `file` | Credential source: `file` or `grpc`. |
+| `RPT_AUTH__FILE` | `/run/secrets/credentials.csv` in the image settings | Local credential file. |
+
+Dynaconf reads `settings.toml` and optional `.secrets.toml` from the working directory,
+then applies `RPT_` environment overrides. Use two underscores for nested settings.
+For host-managed files mounted at `/config`, set `RPT_CONFIG_DIR=/config`. Files use
+plain TOML without environment sections. Use absolute paths for mounted credentials.
+
+The `grpc` backend retrieves a node's password from a compatible credential service.
+IAX challenge-response verification stays in this service. The production credential
+server is a separate, future project. The client requires verified TLS and a service
+token or client certificate. Successful lookups use a cache of up to 4096 entries
+with a 60-second TTL by default. Unexpired credentials remain usable during an
+outage; expired credentials and new lookups fail closed. Password rotation can take
+up to the cache TTL to become visible. The service never falls back to the CSV file
+automatically.
+
+See [authentication and limits](docs/authentication.md) for gRPC, TLS, cache, and
+rate-limit settings. Application limits are per process. Use shared network controls
+for multiple instances, and allow suitable capacity for nodes behind shared NAT.
+
+## Check a registration
+
+On an Asterisk node, add its ID, generated password, and your registrar's hostname
+to the `[general]` section of `iax.conf`:
+
+```ini
+[general]
+register => 1234:YOUR_GENERATED_PASSWORD@register.example.org
 ```
 
-Notes on backends
-- `register/flatfile.py` reads `useraccess.csv` by default; see its
-	`help()` for the `--file` option.
-- `register/aslold.py` connects via SQLAlchemy; pass `--db` to configure
-	the SQLAlchemy URL.
-- `notify/kafka.py` uses `confluent_kafka.Producer` and publishes
-	serialized `update` protobuf messages to the configured topic.
+See the [AllStarLink IAX registration guide](https://allstarlink.github.io/adv-topics/iaxreg/)
+for client setup. `iax2 show registry` in the Asterisk CLI shows its status. After a
+successful exchange, check that the DNS directory reports the node's expected public
+address and IAX port.
 
-Testing
-
-- `get_info.py` is a small client script that sends an IAX INFO packet
-	to a local server to help exercise parsing and responses.
-- `threaded_server.py` runs the server directly and supports common
-	command-line help for module-specific options.
-
-Docker
-
-Build and run with the provided Dockerfile:
-
-```bash
-docker build -t pyiax-register .
-docker run --rm -it --network host pyiax-register python3 threaded_server.py --register flatfile
+```sh
+docker logs --tail 100 rpt-iax
+docker restart rpt-iax
+docker stop rpt-iax
 ```
 
-Security & notes
-- The project includes example credentials and configuration files for
-	testing (`useraccess.csv`, `pyiax-reg.conf`). Do not use these in
-	production.
-- When referencing the DNS server/protobufs, note that `dnsserver` is
-	a separate GitHub project: https://github.com/Apprpt-Central/dnsserver
+If a node cannot register, check its ID and password, UDP connectivity, authentication
+limits, and Kafka connectivity. The registrar sends REGACK only after Kafka confirms
+the update. A registration rejection can therefore mean that publication failed as
+well as that credentials were rejected.
 
-License
+Challenges expire after 30 seconds and are bound to the peer and node identity.
+Retransmissions reuse the transaction's response without publishing duplicate updates.
+SIGTERM stops request admission and closes service resources.
 
-This project is licensed under the terms in `LICENSE`.
+## Build an image
+
+From this checkout, with Docker Buildx and Python 3.13+ installed:
+
+```sh
+PROTOBUF_REV=$(python3 scripts/dependency.py)
+docker buildx build --load \
+  --build-context "rpt_protobuf=https://github.com/Hamlink-Canada/rpt_protobuf.git#${PROTOBUF_REV}" \
+  --tag rpt-iax-register:local .
+```
+
+The build fetches the public protobuf library at the revision pinned by this project.
+The image starts `rpt-iax`.
+
+## Development
+
+Use Python 3.13+ and uv. Place this checkout next to `rpt_protobuf`, with the library
+at the revision printed by `scripts/dependency.py`. uv installs the sibling library
+in editable mode.
+
+```sh
+uv sync --locked
+make check test build
+RPT_AUTH__FILE=examples/credentials.csv uv run --locked rpt-iax
+```
+
+The example credentials are for local development only. To build an image using
+local library changes, replace the remote context with
+`--build-context rpt_protobuf=../rpt_protobuf`. Standard Python installations use
+the Git SHA in `pyproject.toml`. Update that pin and the lockfile together when
+adopting a new dependency revision. Keep schemas and generated bindings in the
+shared library.
+
+CI checks Python 3.13 and 3.14 and is configured for Linux AMD64 and ARM64 image
+builds and runtime imports. Version tags publish versioned images and commit-SHA
+tags; only stable releases update `latest`. Pull requests never publish images.
+There is no PyPI release.
+
+## License
+
+[AGPL-3.0-or-later](LICENSE).
