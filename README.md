@@ -9,6 +9,8 @@ You need Docker, a reachable Kafka broker, and credentials for the nodes allowed
 to register. The address and UDP port observed by the service are published as the
 node's endpoint, so the deployment must preserve the client's source address.
 
+Full deployment and configuration details are in the [Register-pyIAX operator guide](https://hamlink-canada.github.io/apt-rpt-docs/projects/iax/).
+
 ## Prepare node credentials
 
 Create a CSV file containing a generated password for each node:

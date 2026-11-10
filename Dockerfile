@@ -14,7 +14,7 @@ RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python
 
 FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 AS runtime
 ARG VCS_REF=development
-LABEL org.opencontainers.image.source="https://github.com/Hamlink-Canada/pyIAX-Register" \
+LABEL org.opencontainers.image.source="https://github.com/Hamlink-Canada/Register-pyIAX" \
       org.opencontainers.image.revision="$VCS_REF" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later"
 ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
