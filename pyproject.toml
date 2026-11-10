@@ -9,7 +9,7 @@ description = "IAX repeater registration"
 requires-python = ">=3.13"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-dependencies = ["rpt-protobuf[grpc] @ git+https://github.com/Hamlink-Canada/rpt_protobuf.git@aefcc36ebb149c175429ddea86c482cf37f5ebd4", "dynaconf>=3.3.5,<4", "confluent-kafka>=2.16,<3", "cachetools>=8,<9"]
+dependencies = ["rpt-protobuf[grpc] @ git+https://github.com/Hamlink-Canada/rpt_protobuf.git@main", "dynaconf>=3.3.5,<4", "confluent-kafka>=2.16,<3", "cachetools>=8,<9"]
 
 [project.scripts]
 rpt-iax = "rpt_iax.cli:main"
