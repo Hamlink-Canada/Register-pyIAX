@@ -81,8 +81,8 @@ jobs:
       - name: Smoke-test runtime imports on both architectures
         run: |
           for platform in linux/amd64 linux/arm64; do
-            docker buildx build --load --platform "$platform" --build-context rpt_protobuf=./rpt_protobuf -t Register-pyIAX:check ./service
-            docker run --rm --network none --platform "$platform" --entrypoint python Register-pyIAX:check -c "import rpt_iax.cli; from rpt_protobuf.dns_update_pb2 import dns_update; assert dns_update().node.id == 0"
+            docker buildx build --load --platform "$platform" --build-context rpt_protobuf=./rpt_protobuf -t register-pyiax:check ./service
+            docker run --rm --network none --platform "$platform" --entrypoint python register-pyiax:check -c "import rpt_iax.cli; from rpt_protobuf.dns_update_pb2 import dns_update; assert dns_update().node.id == 0"
           done
       - id: tags
         env:
@@ -91,7 +91,7 @@ jobs:
           RELEASE: ${{ github.event_name == 'release' }}
           PRERELEASE: ${{ github.event.release.prerelease || false }}
         run: |
-          image=ghcr.io/hamlink-canada/Register-pyIAX
+          image=ghcr.io/hamlink-canada/register-pyiax
           echo 'tags<<EOF' >> "$GITHUB_OUTPUT"
           echo "$image:sha-$SHA" >> "$GITHUB_OUTPUT"
           if [ "$RELEASE" = true ]; then
