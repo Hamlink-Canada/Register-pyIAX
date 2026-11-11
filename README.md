@@ -157,9 +157,15 @@ builds can use newer library code. Refresh lockfiles when dependency metadata ch
 shared library.
 
 CI checks Python 3.13 and 3.14 and is configured for Linux AMD64 and ARM64 image
-builds and runtime imports. Version tags publish versioned images and commit-SHA
+builds and runtime imports. Published GitHub releases with `vMAJOR.MINOR.PATCH` tags publish versioned images
+and commit-SHA
 tags; only stable releases update `latest`. Pull requests never publish images.
 There is no PyPI release.
+
+Images are published only after the release workflow passes its tests and container
+checks. Publishing a GitHub prerelease (for example, `v0.2.0-rc.1`) publishes its
+version and commit-SHA image tags without updating `latest`. Pushing a tag alone
+does not publish an image. Registry authentication uses the built-in `GITHUB_TOKEN`.
 
 ## License
 
