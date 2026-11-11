@@ -95,7 +95,7 @@ jobs:
           echo 'tags<<EOF' >> "$GITHUB_OUTPUT"
           echo "$image:sha-$SHA" >> "$GITHUB_OUTPUT"
           if [ "$RELEASE" = true ]; then
-            if ! printf '%s' "$REF" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$'; then
+            if ! printf '%s' "$REF" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$'; then
               echo 'Invalid release version' >&2
               exit 1
             fi
