@@ -5,6 +5,8 @@ from ipaddress import IPv4Address
 from confluent_kafka import Producer
 from rpt_protobuf.dns_update_pb2 import dns_update
 
+from rpt_iax.kafka_config import client_config
+
 
 class PublishUnavailable(Exception):
     pass
@@ -13,12 +15,15 @@ class PublishUnavailable(Exception):
 class Publisher:
     def __init__(self, settings):
         self.settings = settings
-        self.producer = Producer(
+        config = client_config(settings)
+        config.update(
             {
-                "bootstrap.servers": settings.KAFKA.BOOTSTRAP,
                 "message.timeout.ms": int(settings.KAFKA.TIMEOUT * 1000),
+                "acks": "all",
+                "enable.idempotence": True,
             }
         )
+        self.producer = Producer(config)
 
     def publish(self, node, ip, port):
         entry = dns_update()
