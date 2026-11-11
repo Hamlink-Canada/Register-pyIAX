@@ -4,7 +4,9 @@ from rpt_iax.kafka_config import client_config
 
 
 def test_client_config_uses_plain_bootstrap_by_default():
-    settings = SimpleNamespace(KAFKA=SimpleNamespace(BOOTSTRAP="localhost:9092", SECURITY_PROTOCOL=""))
+    settings = SimpleNamespace(
+        KAFKA=SimpleNamespace(BOOTSTRAP="localhost:9092", SECURITY_PROTOCOL="")
+    )
 
     assert client_config(settings) == {"bootstrap.servers": "localhost:9092"}
 
