@@ -7,6 +7,7 @@ from rpt_iax.publisher import Publisher, PublishUnavailable
 
 class Producer:
     def __init__(self, config):
+        self.config = config
         self.sent = []
         self.fail = False
 
@@ -32,3 +33,13 @@ def test_nested_publication(monkeypatch, tmp_path):
     publisher.producer.fail = True
     with pytest.raises(PublishUnavailable):
         publisher.publish("1234", "192.0.2.1", 4569)
+
+
+def test_publisher_uses_durable_kafka_producer_settings(monkeypatch, tmp_path):
+    monkeypatch.setenv("RPT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setattr("rpt_iax.publisher.Producer", Producer)
+
+    publisher = Publisher(load_settings())
+
+    assert publisher.producer.config["acks"] == "all"
+    assert publisher.producer.config["enable.idempotence"] is True

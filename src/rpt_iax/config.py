@@ -23,7 +23,16 @@ DEFAULTS = {
         "client_cert": "",
         "client_key": "",
     },
-    "kafka": {"bootstrap": "localhost:9092", "topic": "rpt.registrations", "timeout": 5},
+    "kafka": {
+        "bootstrap": "localhost:9092",
+        "topic": "rpt.registrations",
+        "timeout": 5,
+        "security_protocol": "",
+        "sasl_mechanism": "",
+        "sasl_username": "",
+        "sasl_password": "",
+        "ssl_ca_location": "",
+    },
     "http": {"max_body": 16384, "trusted_proxies": [], "proxy_hops": 1},
     "limits": {
         "state_size": 16384,
@@ -81,4 +90,16 @@ def load_settings(**overrides):
         raise ValueError("invalid port, refresh, or lifetime")
     if not settings.KAFKA.TOPIC or not settings.SERVER_ID:
         raise ValueError("Kafka topic and server ID are required")
+    if settings.KAFKA.SECURITY_PROTOCOL:
+        if settings.KAFKA.SECURITY_PROTOCOL != "SASL_SSL":
+            raise ValueError("Kafka security protocol must be SASL_SSL")
+        if not all(
+            (
+                settings.KAFKA.SASL_MECHANISM == "SCRAM-SHA-512",
+                settings.KAFKA.SASL_USERNAME,
+                settings.KAFKA.SASL_PASSWORD,
+                settings.KAFKA.SSL_CA_LOCATION,
+            )
+        ):
+            raise ValueError("Kafka SASL-SCRAM and TLS credentials are required")
     return settings
