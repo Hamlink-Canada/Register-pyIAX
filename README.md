@@ -83,11 +83,11 @@ For host-managed files mounted at `/config`, set `RPT_CONFIG_DIR=/config`. Files
 plain TOML without environment sections. Use absolute paths for mounted credentials.
 
 The `grpc` backend retrieves a node's password from a compatible credential service.
-IAX challenge-response verification stays in this service. The production credential
-server implementation is in the Register-Central_Auth repository. The client requires verified TLS and a service
-token or client certificate. Successful lookups use a cache of up to 4096 entries
-with a 60-second TTL by default. Unexpired credentials remain usable during an
-outage; expired credentials and new lookups fail closed. Password rotation can take
+IAX challenge-response verification stays in this service. The `Register-Central_Auth`
+repository implements the production credential server. The client requires verified
+TLS and a service token or client certificate. Successful lookups use a cache of up
+to 4096 entries with a 60-second TTL by default. Unexpired credentials remain usable
+during an outage; expired credentials and new lookups fail closed. Password rotation can take
 up to the cache TTL to become visible. The service never falls back to the CSV file
 automatically.
 
