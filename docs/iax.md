@@ -13,10 +13,15 @@ not allocate transaction state or trigger credential lookups. Only IPv4 is curre
 implemented. The IAX wire REFRESH field remains 60 seconds by default; DNS message
 validity is configured separately to permit missed renewals.
 
-SIGTERM stops request admission and closes resources. Preserve the observed source
-address and UDP port through container/network ingress: they are the address published
-for the node. The service listens on UDP 4569 by default; optional host networking
-is a deployment decision rather than a hardcoded Compose requirement.
+SIGTERM stops request admission and closes resources. By default, the observed source
+address and UDP port are published for the node, so deployments must preserve them.
+PROXY protocol v2 over UDP can be enabled for a trusted proxy; each datagram carries
+its header and IAX payload together. In that mode the registrar uses the proxied IPv4
+address and port for IAX identity, abuse controls, and publication, and returns replies
+to the proxy that sent the datagram. PROXY mode requires an explicit IPv4 CIDR allowlist
+and does not accept raw IAX datagrams on the same listener. The service listens on UDP
+4569 by default; optional host networking is a deployment decision rather than a
+hardcoded Compose requirement.
 
 Protocol reference: https://www.rfc-editor.org/rfc/rfc5456.html
 Tests include real UDP exchanges, peer/identity separation, replay, expiry, and final

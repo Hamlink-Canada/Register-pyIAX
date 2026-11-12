@@ -7,7 +7,8 @@ is not supported.
 
 You need Docker, a reachable Kafka broker, and credentials for the nodes allowed
 to register. The address and UDP port observed by the service are published as the
-node's endpoint, so the deployment must preserve the client's source address.
+node's endpoint, so the deployment must preserve the client's source address unless
+PROXY protocol v2 is enabled for a trusted UDP proxy.
 
 See the [IAX registrar documentation](docs/README.md) for protocol and authentication details.
 The cross-project [operator guide](https://hamlink-canada.github.io/apt-rpt-docs/projects/iax/)
@@ -74,6 +75,8 @@ networking details.
 | `RPT_SERVER_ID` | `registrar-1` in the image settings | Identifier included in registrations. |
 | `RPT_REFRESH` | `60` | Refresh value sent in REGACK, in seconds. |
 | `RPT_LIFETIME` | `180` | Registration validity in the DNS directory, in seconds. |
+| `RPT_PROXY_PROTOCOL__ENABLED` | `false` | Require PROXY protocol v2 headers on every IAX datagram. |
+| `RPT_PROXY_PROTOCOL__TRUSTED_PROXIES` | `[]` | IPv4 CIDRs allowed to send PROXY protocol datagrams. Required when proxy protocol is enabled. |
 | `RPT_AUTH__BACKEND` | `file` | Credential source: `file` or `grpc`. |
 | `RPT_AUTH__FILE` | `/run/secrets/credentials.csv` in the image settings | Local credential file. |
 
@@ -81,6 +84,17 @@ Dynaconf reads `settings.toml` and optional `.secrets.toml` from the working dir
 then applies `RPT_` environment overrides. Use two underscores for nested settings.
 For host-managed files mounted at `/config`, set `RPT_CONFIG_DIR=/config`. Files use
 plain TOML without environment sections. Use absolute paths for mounted credentials.
+
+To enable PROXY protocol, configure the trusted proxy addresses in `settings.toml`:
+
+```toml
+[proxy_protocol]
+enabled = true
+trusted_proxies = ["192.0.2.10/32"]
+```
+
+Replace the example with the IPv4 CIDRs of the proxy hosts. When enabled, the listener
+requires valid PROXY v2 headers on every datagram.
 
 The `grpc` backend retrieves a node's password from a compatible credential service.
 IAX challenge-response verification stays in this service. The `Register-Central_Auth`
