@@ -9,7 +9,9 @@ You need Docker, a reachable Kafka broker, and credentials for the nodes allowed
 to register. The address and UDP port observed by the service are published as the
 node's endpoint, so the deployment must preserve the client's source address.
 
-Full deployment and configuration details are in the [Register-pyIAX operator guide](https://hamlink-canada.github.io/apt-rpt-docs/projects/iax/).
+See the [IAX registrar documentation](docs/README.md) for protocol and authentication details.
+The cross-project [operator guide](https://hamlink-canada.github.io/apt-rpt-docs/projects/iax/)
+explains how it fits with the other services.
 
 ## Prepare node credentials
 
@@ -82,7 +84,7 @@ plain TOML without environment sections. Use absolute paths for mounted credenti
 
 The `grpc` backend retrieves a node's password from a compatible credential service.
 IAX challenge-response verification stays in this service. The production credential
-server is a separate, future project. The client requires verified TLS and a service
+server implementation is in the Register-Central_Auth repository. The client requires verified TLS and a service
 token or client certificate. Successful lookups use a cache of up to 4096 entries
 with a 60-second TTL by default. Unexpired credentials remain usable during an
 outage; expired credentials and new lookups fail closed. Password rotation can take
