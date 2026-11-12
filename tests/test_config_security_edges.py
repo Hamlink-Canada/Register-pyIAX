@@ -29,14 +29,14 @@ def test_iax_config_rejects_invalid_values(overrides):
 
 
 def test_iax_config_accepts_trusted_ipv4_proxy_cidrs():
-    settings = load_settings(
-        proxy_protocol={"enabled": True, "trusted_proxies": ["192.0.2.10/24"]}
-    )
+    settings = load_settings(proxy_protocol={"enabled": True, "trusted_proxies": ["192.0.2.10/24"]})
     assert settings.PROXY_PROTOCOL.TRUSTED_PROXIES == ["192.0.2.10/24"]
 
 
 def test_iax_config_merges_file_and_environment(monkeypatch, tmp_path):
-    (tmp_path / "settings.toml").write_text('[proxy_protocol]\nenabled=true\ntrusted_proxies=["127.0.0.1/32"]\n')
+    (tmp_path / "settings.toml").write_text(
+        '[proxy_protocol]\nenabled=true\ntrusted_proxies=["127.0.0.1/32"]\n'
+    )
     monkeypatch.setenv("RPT_SERVER_ID", "from-environment")
     settings = load_settings()
     assert settings.SERVER_ID == "from-environment"
