@@ -33,7 +33,7 @@ so that this user can read it while access by other users is restricted.
 
 ## Run the service
 
-Choose a versioned image from `ghcr.io/hamlink-canada/rpt-iax-register` when a release
+Choose a versioned image from `ghcr.io/hamlink-canada/register-pyiax` when a release
 is available. Before an image is published, [build this checkout](#build-an-image)
 and use `rpt-iax-register:local`.
 
