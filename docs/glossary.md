@@ -25,3 +25,9 @@ A system-generated shared secret used to prove a node's identity during registra
 
 **Credential service**:
 A trusted source of registration passwords for authorized registrars.
+
+**Trusted proxy**:
+A network intermediary allowed to identify the original client endpoint to the registrar.
+
+**PROXY protocol**:
+A transport metadata format that carries the original client and destination endpoints through a trusted proxy.
