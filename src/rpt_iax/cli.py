@@ -9,8 +9,8 @@ from threading import BoundedSemaphore
 from .auth import credentials
 from .config import load_settings
 from .protocol import RegistrationProtocol
-from .publisher import Publisher
 from .proxy_protocol import unwrap_datagram
+from .publisher import Publisher
 from .security import AbuseGuard
 
 
@@ -28,7 +28,9 @@ class Server(socketserver.ThreadingMixIn, socketserver.UDPServer):
     allow_reuse_address = True
     max_packet_size = 65535
 
-    def __init__(self, address, protocol, guard, workers, *, proxy_protocol=False, trusted_proxies=()):
+    def __init__(
+        self, address, protocol, guard, workers, *, proxy_protocol=False, trusted_proxies=()
+    ):
         self.protocol, self.guard = protocol, guard
         self.proxy_protocol = proxy_protocol
         self.trusted_proxies = [ip_network(network, strict=False) for network in trusted_proxies]

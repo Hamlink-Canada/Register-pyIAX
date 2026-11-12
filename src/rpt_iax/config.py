@@ -92,15 +92,16 @@ def load_settings(**overrides):
         raise ValueError("invalid port, refresh, or lifetime")
     try:
         proxy_networks = [
-            ip_network(network, strict=False)
-            for network in settings.PROXY_PROTOCOL.TRUSTED_PROXIES
+            ip_network(network, strict=False) for network in settings.PROXY_PROTOCOL.TRUSTED_PROXIES
         ]
     except (TypeError, ValueError) as error:
         raise ValueError("proxy_protocol.trusted_proxies must contain valid IPv4 CIDRs") from error
     if any(network.version != 4 for network in proxy_networks):
         raise ValueError("proxy_protocol.trusted_proxies must contain IPv4 CIDRs")
     if settings.PROXY_PROTOCOL.ENABLED and not proxy_networks:
-        raise ValueError("proxy_protocol.trusted_proxies is required when proxy protocol is enabled")
+        raise ValueError(
+            "proxy_protocol.trusted_proxies is required when proxy protocol is enabled"
+        )
     if not settings.KAFKA.TOPIC or not settings.SERVER_ID:
         raise ValueError("Kafka topic and server ID are required")
     if settings.KAFKA.SECURITY_PROTOCOL:
