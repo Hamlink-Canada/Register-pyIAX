@@ -16,6 +16,19 @@ from cachetools import TTLCache
 from .auth import AuthUnavailable, node_id
 from .publisher import PublishUnavailable
 
+try:
+    from opentelemetry import metrics, trace
+except ImportError:  # Telemetry is an optional extra.
+    metrics = None
+    trace = None
+
+if metrics is not None:
+    _meter = metrics.get_meter(__name__)
+    _requests = _meter.create_counter("rpt.iax.registrations", unit="{request}")
+    _duration = _meter.create_histogram("rpt.iax.registration.duration", unit="s")
+else:
+    _requests = _duration = None
+
 
 def elements(data):
     result = {}
@@ -63,13 +76,32 @@ class RegistrationProtocol:
         self.lock = RLock()
 
     def handle(self, data, peer):
+        span = trace.get_tracer(__name__).start_span("rpt_iax.registration") if trace else None
+        scope = trace.use_span(span, end_on_exit=True) if span is not None else None
+        if scope is not None:
+            scope.__enter__()
+        started = monotonic()
+        outcome = "processed"
         try:
+            if span is not None and span.is_recording():
+                span.set_attribute("client.address", peer[0])
+                span.set_attribute("network.transport", "udp")
             return self._handle(data, peer)
         except (ValueError, UnicodeError, OverflowError):
+            outcome = "malformed"
             # Do not log attacker-controlled packets or credentials.
             with self.guard.lock:
                 self.guard.metrics["malformed"] += 1
+            if span is not None and span.is_recording():
+                span.set_attribute("auth.failure.category", "malformed_registration")
             return None
+        finally:
+            attributes = {"outcome": outcome}
+            if _requests is not None:
+                _requests.add(1, attributes)
+                _duration.record(monotonic() - started, attributes)
+            if scope is not None:
+                scope.__exit__(None, None, None)
 
     def _handle(self, data, peer):
         if not 12 <= len(data) <= 4096:
@@ -119,7 +151,19 @@ class RegistrationProtocol:
         if sub != 13:  # Registration only; unsolicited response frames cannot allocate state.
             return None
         values = elements(data[12:])
+        if trace is not None:
+            raw_node = values.get(6, b"").decode("ascii", errors="replace")[:128]
+            span = trace.get_current_span()
+            if span.is_recording():
+                span.set_attribute("auth.username", raw_node)
+                span.set_attribute("auth.password.present", 16 in values)
+                span.set_attribute("auth.password.length", len(values[16]) if 16 in values else 0)
         node = node_id(values.get(6, b"").decode("ascii"))
+        if trace is not None:
+            span = trace.get_current_span()
+            if span.is_recording():
+                span.set_attribute("repeater.node_id", node)
+                span.set_attribute("client.address", peer[0])
         proof = values.get(16)
         if 17 in values:  # RSA is not supported.
             return self._response(
@@ -181,6 +225,11 @@ class RegistrationProtocol:
                 valid = password is not None and compare_digest(expected, proof.lower())
                 if valid and self.guard.success(peer[0], node):
                     self.publisher.publish(node, peer[0], peer[1])
+                    if trace is not None:
+                        span = trace.get_current_span()
+                        if span.is_recording():
+                            span.set_attribute("auth.result", "success")
+                            span.set_attribute("registration.result", "published")
                     with self.lock:
                         self.nodes[node] = True
                     now = datetime.now(timezone.utc)
@@ -194,9 +243,23 @@ class RegistrationProtocol:
                     )
                     return state.terminal_reply
                 if not valid:
+                    if trace is not None:
+                        span = trace.get_current_span()
+                        if span.is_recording():
+                            span.set_attribute("auth.failure.category", "credential_mismatch")
                     self.guard.failure(peer[0], node)
-            except (AuthUnavailable, PublishUnavailable):
-                pass
+            except AuthUnavailable:
+                if trace is not None:
+                    span = trace.get_current_span()
+                    if span.is_recording():
+                        span.set_attribute(
+                            "auth.failure.category", "credential_service_unavailable"
+                        )
+            except PublishUnavailable:
+                if trace is not None:
+                    span = trace.get_current_span()
+                    if span.is_recording():
+                        span.set_attribute("registration.failure.category", "publisher_unavailable")
             state.terminal_reply = self._response(
                 16,
                 source,
