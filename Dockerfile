@@ -10,7 +10,7 @@ COPY --from=rpt_protobuf /src/ /build/rpt_protobuf/src/
 COPY --from=rpt_protobuf /pyproject.toml /README.md /LICENSE /build/rpt_protobuf/
 COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src/ src/
-RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python
+RUN uv sync --frozen --no-dev --no-editable --extra otel --python /usr/local/bin/python
 
 FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 AS runtime
 ARG VCS_REF=development

@@ -82,7 +82,7 @@ jobs:
         run: |
           for platform in linux/amd64 linux/arm64; do
             docker buildx build --load --platform "$platform" --build-context rpt_protobuf=./rpt_protobuf -t register-pyiax:check ./service
-            docker run --rm --network none --platform "$platform" --entrypoint python register-pyiax:check -c "import rpt_iax.cli; from rpt_protobuf.dns_update_pb2 import dns_update; assert dns_update().node.id == 0"
+            docker run --rm --network none --platform "$platform" --entrypoint python register-pyiax:check -c "from importlib.metadata import version; [version(name) for name in ('opentelemetry-api', 'opentelemetry-sdk', 'opentelemetry-exporter-otlp-proto-http', 'opentelemetry-exporter-otlp-proto-grpc', 'opentelemetry-distro', 'opentelemetry-instrumentation-confluent-kafka', 'opentelemetry-instrumentation-system-metrics', 'opentelemetry-instrumentation-logging')]; import rpt_iax.cli; from rpt_protobuf.dns_update_pb2 import dns_update; assert dns_update().node.id == 0"
           done
       - id: tags
         env:
