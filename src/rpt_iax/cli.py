@@ -108,6 +108,14 @@ def main():
                 server.handle_request()
         finally:
             # Wait for active protocol handlers before closing their dependencies.
-            server.server_close()
+            _close_resources(server, provider, publisher)
+
+
+def _close_resources(server, provider, publisher):
+    try:
+        server.server_close()
+    finally:
+        try:
             provider.close()
+        finally:
             publisher.close()
