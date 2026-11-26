@@ -65,6 +65,7 @@ def test_csv_valid_and_missing(tmp_path):
         "node_id,password\nabc,x\n",
         "node_id,password\n1,\n",
         "node_id,password\n1,x,extra\n",
+        'node_id,password\n1,"unterminated\n',
     ],
 )
 def test_csv_rejects_invalid(tmp_path, contents):
@@ -124,6 +125,7 @@ def test_transport_requires_service_identity():
     settings = load_settings()
     with pytest.raises(ValueError, match="service token"):
         GrpcCredentials(settings)
+    settings.ENVIRONMENT = "production"
     settings.GRPC.INSECURE = True
     with pytest.raises(ValueError, match="development"):
         GrpcCredentials(settings)
@@ -158,8 +160,9 @@ def test_bounded_ingress_state():
     settings = load_settings(limits={"state_size": 2})
     guard = AbuseGuard(settings)
     assert guard.ingress("192.0.2.1")
-    assert not guard.ingress("192.0.2.2")
-    assert len(guard.buckets) == 2
+    assert guard.ingress("192.0.2.2")
+    assert not guard.ingress("192.0.2.3")
+    assert len(guard.source_buckets) == 2
 
 
 def test_verified_tls_service_token(rpc, tmp_path):

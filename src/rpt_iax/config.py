@@ -88,6 +88,29 @@ def load_settings(**overrides):
     ):
         if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
             raise ValueError("numeric configuration values must be positive")
+    integer_values = (
+        settings.PORT,
+        settings.REFRESH,
+        settings.LIFETIME,
+        settings.AUTH.CACHE_SIZE,
+        settings.GRPC.CONCURRENCY,
+        settings.LIMITS.STATE_SIZE,
+        settings.LIMITS.GLOBAL_RATE,
+        settings.LIMITS.GLOBAL_BURST,
+        settings.LIMITS.SOURCE_RATE,
+        settings.LIMITS.SOURCE_BURST,
+        settings.LIMITS.FAIL_IP_RATE,
+        settings.LIMITS.FAIL_IP_BURST,
+        settings.LIMITS.FAIL_PAIR_RATE,
+        settings.LIMITS.FAIL_PAIR_BURST,
+        settings.LIMITS.REFRESH_RATE,
+        settings.LIMITS.REFRESH_BURST,
+        settings.LIMITS.WORKERS,
+        settings.LIMITS.CHALLENGE_TTL,
+        settings.LIMITS.CALL_SIZE,
+    )
+    if any(type(value) is not int for value in integer_values):
+        raise ValueError("ports, counts, and rate limits must be integers")
     if settings.PORT > 65535 or settings.REFRESH > 65535 or settings.LIFETIME <= settings.REFRESH:
         raise ValueError("invalid port, refresh, or lifetime")
     try:
@@ -104,6 +127,8 @@ def load_settings(**overrides):
         )
     if not settings.KAFKA.TOPIC or not settings.SERVER_ID:
         raise ValueError("Kafka topic and server ID are required")
+    if settings.ENVIRONMENT != "development" and settings.KAFKA.SECURITY_PROTOCOL != "SASL_SSL":
+        raise ValueError("Kafka SASL_SSL is required outside development")
     if settings.KAFKA.SECURITY_PROTOCOL:
         if settings.KAFKA.SECURITY_PROTOCOL != "SASL_SSL":
             raise ValueError("Kafka security protocol must be SASL_SSL")

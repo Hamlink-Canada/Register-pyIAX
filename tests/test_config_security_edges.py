@@ -7,6 +7,7 @@ from rpt_iax.security import AbuseGuard
 @pytest.fixture(autouse=True)
 def isolated_config(monkeypatch, tmp_path):
     monkeypatch.setenv("RPT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("RPT_ENVIRONMENT", "development")
 
 
 @pytest.mark.parametrize(
@@ -21,11 +22,19 @@ def isolated_config(monkeypatch, tmp_path):
         {"proxy_protocol": {"trusted_proxies": ["2001:db8::/32"]}},
         {"kafka": {"security_protocol": "SSL"}},
         {"kafka": {"security_protocol": "SASL_SSL"}},
+        {"refresh": 60.5},
+        {"grpc": {"concurrency": 2.5}},
+        {"limits": {"call_size": 10.5}},
     ],
 )
 def test_iax_config_rejects_invalid_values(overrides):
     with pytest.raises(ValueError):
         load_settings(**overrides)
+
+
+def test_iax_requires_scram_tls_outside_development():
+    with pytest.raises(ValueError, match="SASL_SSL"):
+        load_settings(environment="production")
 
 
 def test_iax_config_accepts_trusted_ipv4_proxy_cidrs():
@@ -65,6 +74,44 @@ def test_iax_abuse_guard_consumes_failures_and_bounds_state():
 
     bounded = AbuseGuard(load_settings(limits={"state_size": 2}), timer=lambda: now[0])
     assert bounded.ingress("192.0.2.1")
-    assert not bounded.ingress("192.0.2.2")
-    assert len(bounded.buckets) == 2
+    assert bounded.ingress("192.0.2.2")
+    assert not bounded.ingress("192.0.2.3")
+    assert len(bounded.source_buckets) == 2
     assert bounded.metrics["state_full"] == 1
+
+
+def test_global_rejection_does_not_retain_a_new_source():
+    settings = load_settings(limits={"global_rate": 1, "global_burst": 1, "state_size": 8})
+    guard = AbuseGuard(settings, timer=lambda: 0)
+    assert guard.ingress("192.0.2.1")
+    assert not guard.ingress("192.0.2.2")
+    assert set(guard.source_buckets) == {"192.0.2.1"}
+
+
+def test_authentication_state_expires_on_failure_refill_window():
+    settings = load_settings(
+        limits={
+            "global_rate": 1,
+            "global_burst": 2000,
+            "fail_ip_rate": 60,
+            "fail_ip_burst": 1,
+            "fail_pair_rate": 60,
+            "fail_pair_burst": 1,
+        }
+    )
+    now = [0.0]
+    guard = AbuseGuard(settings, timer=lambda: now[0])
+    guard.failure("192.0.2.1", "1234")
+    assert len(guard.auth_buckets) == 2
+    now[0] = 601
+    assert guard.auth_allowed("192.0.2.2", "5678")
+    assert len(guard.auth_buckets) == 2
+
+
+def test_ingress_state_does_not_consume_authentication_budget():
+    settings = load_settings(limits={"state_size": 2, "global_burst": 100})
+    guard = AbuseGuard(settings, timer=lambda: 0)
+    assert guard.ingress("192.0.2.1")
+    assert guard.ingress("192.0.2.2")
+    assert not guard.ingress("192.0.2.3")
+    assert guard.auth_allowed("192.0.2.3", "1234")
