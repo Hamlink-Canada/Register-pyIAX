@@ -35,8 +35,18 @@ class Server(socketserver.ThreadingMixIn, socketserver.UDPServer):
         self.protocol, self.guard = protocol, guard
         self.proxy_protocol = proxy_protocol
         self.trusted_proxies = [ip_network(network, strict=False) for network in trusted_proxies]
+        self.worker_limit = workers
         self.slots = BoundedSemaphore(workers)
+        self.handlers_drained = False
         super().__init__(address, Handler)
+
+    def server_close(self):
+        # Handler threads share the UDP socket, so drain admitted work first.
+        if not self.handlers_drained:
+            for _ in range(self.worker_limit):
+                self.slots.acquire()
+            self.handlers_drained = True
+        super().server_close()
 
     def process_request(self, request, client_address):
         data, sock = request

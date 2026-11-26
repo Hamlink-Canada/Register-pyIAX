@@ -12,20 +12,23 @@ class AbuseGuard:
         self.settings = settings.LIMITS
         self.timer = timer
         self.lock = RLock()
-        self.bucket_ttl = max(
-            600,
-            *(
-                60
-                * float(getattr(self.settings, f"{name}_BURST"))
-                / float(getattr(self.settings, f"{name}_RATE"))
-                for name in ("GLOBAL", "SOURCE", "FAIL_IP", "FAIL_PAIR", "REFRESH")
-            ),
-        )
+
+        def refill_ttl(*names):
+            return max(
+                600,
+                *(
+                    60
+                    * float(getattr(self.settings, f"{name}_BURST"))
+                    / float(getattr(self.settings, f"{name}_RATE"))
+                    for name in names
+                ),
+            )
+
         capacity = int(self.settings.STATE_SIZE)
-        self.global_buckets = TTLCache(1, self.bucket_ttl, timer=timer)
-        self.source_buckets = TTLCache(capacity, self.bucket_ttl, timer=timer)
-        self.auth_buckets = TTLCache(capacity, self.bucket_ttl, timer=timer)
-        self.refresh_buckets = TTLCache(capacity, self.bucket_ttl, timer=timer)
+        self.global_buckets = TTLCache(1, refill_ttl("GLOBAL"), timer=timer)
+        self.source_buckets = TTLCache(capacity, refill_ttl("SOURCE"), timer=timer)
+        self.auth_buckets = TTLCache(capacity, refill_ttl("FAIL_IP", "FAIL_PAIR"), timer=timer)
+        self.refresh_buckets = TTLCache(capacity, refill_ttl("REFRESH"), timer=timer)
         self.node_failures = TTLCache(int(self.settings.STATE_SIZE), 300, timer=timer)
         self.metrics = Counter()
 
@@ -44,11 +47,32 @@ class AbuseGuard:
             return allowed
 
     def ingress(self, ip):
-        return self._allow(
-            self.source_buckets, ip, self.settings.SOURCE_RATE, self.settings.SOURCE_BURST
-        ) and self._allow(
-            self.global_buckets, "global", self.settings.GLOBAL_RATE, self.settings.GLOBAL_BURST
-        )
+        with self.lock:
+            now = self.timer()
+            if (
+                ip not in self.source_buckets
+                and len(self.source_buckets) >= self.source_buckets.maxsize
+            ):
+                self.metrics["state_full"] += 1
+                return False
+            tokens, last = self.source_buckets.get(ip, (float(self.settings.SOURCE_BURST), now))
+            tokens = min(
+                float(self.settings.SOURCE_BURST),
+                tokens + max(0, now - last) * float(self.settings.SOURCE_RATE) / 60,
+            )
+            if tokens < 1:
+                self.source_buckets[ip] = (tokens, now)
+                self.metrics["throttled"] += 1
+                return False
+            if not self._allow(
+                self.global_buckets,
+                "global",
+                self.settings.GLOBAL_RATE,
+                self.settings.GLOBAL_BURST,
+            ):
+                return False
+            self.source_buckets[ip] = (tokens - 1, now)
+            return True
 
     def auth_allowed(self, ip, node):
         # Failure tokens are consumed after failure, independently of successful refreshes.

@@ -80,6 +80,34 @@ def test_iax_abuse_guard_consumes_failures_and_bounds_state():
     assert bounded.metrics["state_full"] == 1
 
 
+def test_global_rejection_does_not_retain_a_new_source():
+    settings = load_settings(limits={"global_rate": 1, "global_burst": 1, "state_size": 8})
+    guard = AbuseGuard(settings, timer=lambda: 0)
+    assert guard.ingress("192.0.2.1")
+    assert not guard.ingress("192.0.2.2")
+    assert set(guard.source_buckets) == {"192.0.2.1"}
+
+
+def test_authentication_state_expires_on_failure_refill_window():
+    settings = load_settings(
+        limits={
+            "global_rate": 1,
+            "global_burst": 2000,
+            "fail_ip_rate": 60,
+            "fail_ip_burst": 1,
+            "fail_pair_rate": 60,
+            "fail_pair_burst": 1,
+        }
+    )
+    now = [0.0]
+    guard = AbuseGuard(settings, timer=lambda: now[0])
+    guard.failure("192.0.2.1", "1234")
+    assert len(guard.auth_buckets) == 2
+    now[0] = 601
+    assert guard.auth_allowed("192.0.2.2", "5678")
+    assert len(guard.auth_buckets) == 2
+
+
 def test_ingress_state_does_not_consume_authentication_budget():
     settings = load_settings(limits={"state_size": 2, "global_burst": 100})
     guard = AbuseGuard(settings, timer=lambda: 0)
