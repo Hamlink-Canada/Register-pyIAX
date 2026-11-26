@@ -24,7 +24,8 @@ class Handler(socketserver.BaseRequestHandler):
 
 
 class Server(socketserver.ThreadingMixIn, socketserver.UDPServer):
-    daemon_threads = True
+    daemon_threads = False
+    block_on_close = True
     allow_reuse_address = True
     max_packet_size = 65535
 
@@ -96,5 +97,7 @@ def main():
             while not stopped:
                 server.handle_request()
         finally:
+            # Wait for active protocol handlers before closing their dependencies.
+            server.server_close()
             provider.close()
             publisher.close()

@@ -39,16 +39,19 @@ class FileCredentials:
     def __init__(self, filename):
         self.accounts = {}
         with open(filename, newline="", encoding="utf-8") as stream:
-            reader = csv.DictReader(stream)
-            if reader.fieldnames != ["node_id", "password"]:
-                raise ValueError("credential CSV requires node_id,password header")
-            for row in reader:
-                if set(row) != {"node_id", "password"}:
-                    raise ValueError("invalid credential row")
-                key = node_id(row["node_id"])
-                if key in self.accounts or not valid_password(row["password"]):
-                    raise ValueError("duplicate node or invalid password")
-                self.accounts[key] = row["password"]
+            try:
+                reader = csv.DictReader(stream, strict=True)
+                if reader.fieldnames != ["node_id", "password"]:
+                    raise ValueError("credential CSV requires node_id,password header")
+                for row in reader:
+                    if set(row) != {"node_id", "password"}:
+                        raise ValueError("invalid credential row")
+                    key = node_id(row["node_id"])
+                    if key in self.accounts or not valid_password(row["password"]):
+                        raise ValueError("duplicate node or invalid password")
+                    self.accounts[key] = row["password"]
+            except csv.Error as error:
+                raise ValueError("invalid credential CSV") from error
 
     def get(self, key):
         return self.accounts.get(node_id(key))
