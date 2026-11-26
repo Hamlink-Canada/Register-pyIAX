@@ -1,0 +1,16 @@
+# Defaults are packaged; override only what your deployment needs.
+server_id = "registrar-1"
+refresh = 60
+lifetime = 180
+[auth]
+backend = "file"
+file = "/run/secrets/credentials.csv"
+cache_size = 4096
+cache_ttl = 60
+[kafka]
+bootstrap = "localhost:9092"
+topic = "rpt.registrations"
+[grpc]
+target = "auth.example.org:50051"
+deadline = 2
+insecure = false
